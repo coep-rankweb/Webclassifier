@@ -1,16 +1,15 @@
 from classifier import WebClassifier
+from wiki_source import Wikisource
 import sys
 
 '''
-following are the command line arguments:
-
-1. dir name containing category files
-2. name for training dataset
-3. name of the test file
+Note:
+WebClassifier and Wikisource must contain additional `path` arguments which specify the location of the `webclassifier` directory where all *.py, *.conf files are located
 '''
 
 w = WebClassifier()
-#w.generateFeatures()
-w.buildData()
-w.train()
+d = Wikisource(forced_categories = ['arts'])
+d.generateFeatures()
+d.buildData()
+w.train(d)
 #w.test(sys.argv[3])
