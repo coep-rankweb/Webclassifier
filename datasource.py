@@ -10,12 +10,13 @@ class Datasource:
 	'''
 	def __init__(self, path, section, config_file = "classifier.conf", forced_categories = None):
 		self.config = ConfigParser()
-		self.config.readfp(open(config_file))
+		self.config_file = config_file
+		self.config.readfp(open(self.config_file))
 		self.section = section
 		os.chdir(os.path.abspath(path))
 		try: os.mkdir("data/%s" % self.section)
 		except: pass
-		self.metafl = open("data/%s/%s" % (self.section, self.config.get(self.section, "META_FILE")), "w+")
+		self.metafl = ConfigParser()
 		self.categories = forced_categories or os.listdir(self.config.get(self.section, "CLASSES_FILE"))
 		self.r = redis.Redis()
 		self.stemmer = PorterStemmer()
@@ -38,6 +39,7 @@ class Datasource:
 		feature_count = 0
 		document_count = 0
 		nnz = 0
+		self.metafl.add_section("TRAINING_DATA_STATS")
 		for category in self.categories:
 			g = open("%s/%s/%s" % (self.config.get(self.section, "CLASSES_FILE"), category, self.config.get(self.section, "FEATURE_FILE")))
 			for features_csv in g:
@@ -52,9 +54,9 @@ class Datasource:
 					nnz += 1
 				document_count += 1
 			g.close()
-		self.metafl.write("%ld\n" % document_count)
-		self.metafl.write("%ld\n" % feature_count)
-		self.metafl.write("%ld\n" % nnz)
+		self.metafl.set("TRAINING_DATA_STATS", "DOCUMENT_COUNT", document_count)
+		self.metafl.set("TRAINING_DATA_STATS", "FEATURE_COUNT", feature_count)
+		self.metafl.set("TRAINING_DATA_STATS", "NNZ", nnz)
 
 		return document_count, feature_count, nnz
 
@@ -76,7 +78,7 @@ class Datasource:
 		mtxfl = open("data/%s/%s" % (self.section, self.config.get(self.section, "MATRIX_FILE")), "w")
 		mtxfl.write("%%MatrixMarket matrix coordinate real general\n%\n")
 		mtxfl.write("%d\t%d\t%d\n" % (doc, feature, nnz))
-
+		self.metafl.add_section("CATEGORY_STATS")
 		document_number = 1
 		for category in self.categories:
 			g = open("%s/%s/%s" % (self.config.get(self.section, "CLASSES_FILE"), category, self.config.get(self.section, "FEATURE_FILE")))
@@ -87,27 +89,29 @@ class Datasource:
 					mtxfl.write("%d\t%d\t1\n" % (document_number, int(self.r.get(self.config.get(self.section, "FEATURE_COLUMN") + ":" + tok))))
 				document_number += 1
 				cat_count += 1
-			self.metafl.write("%s:%d\n" % (category, cat_count))
+			self.metafl.set("CATEGORY_STATS", category, cat_count)
+		self.metafl.write(open("data/%s/%s" % (self.section, self.config.get(self.section, "META_FILE")), "wb"))
 		mtxfl.close()
 
 	def createTrainingMatrix(self):
 		'''
 		Builds sparse matrix from Matrix Market file.
 		'''
-		return mmread("data/%s/%s" % (self.section, self.config.get(self.section, "MATRIX_FILE"))).tolil()
+		self.metafl.readfp(open("data/%s/%s" % (self.section, self.config.get(self.section, "META_FILE"))))
+		return mmread("data/%s/%s" % (self.section, self.config.get(self.section, "MATRIX_FILE"))).tolil(), (self.metafl.get("TRAINING_DATA_STATS", "document_count"), self.metafl.get("TRAINING_DATA_STATS", "feature_count"))
 
 
 	def createResultVector(self):
-		self.metafl.seek(0)
-		self.metafl.readline()
-		self.metafl.readline()
-		self.metafl.readline()
+		self.metafl.readfp(open(self.config_file))
 		Y = []
-		for l in self.metafl:
-			toklist = l.strip().split(':')
-			for i in range(int(toklist[1])):
-				Y.append(self.categories.index(toklist[0]) + 1)
+		for category, cat_count in self.metafl.items("CATEGORY_STATS"):
+			for i in range(int(cat_count)):
+				Y.append(self.categories.index(category) + 1)
 		return Y
+	
+	def getFeatureCount(self):
+		self.metafl.readfp(self.config_file)
+		return int(self.metafl.get("TRAINING_DATA_STATS", "feature_count"))
 
 	def clean(self, s):
 		s = s.replace('-', ' ').replace('/', ' ').replace('\\', ' ')
@@ -117,4 +121,3 @@ class Datasource:
 	def valid(self, s):
 		a = s.replace(' ', '').replace('\t', '').replace('\n', '')
 		return a != ''
-

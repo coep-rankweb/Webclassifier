@@ -6,6 +6,7 @@ import sys
 import os
 import redis
 import pickle
+import time
 from ConfigParser import ConfigParser
 
 class WebClassifier:
@@ -19,9 +20,8 @@ class WebClassifier:
 		self.config = ConfigParser()
 		os.chdir(os.path.abspath(path))
 		self.config.readfp(open("classifier.conf"))
-		try: os.mkdir("data/%s" % self.config.get("CLASSIFIER", "BASE"))
+		try: os.mkdir("data/classifier")
 		except: pass
-		self.metafl = open("data/%s/%s" % (self.config.get("CLASSIFIER", "BASE"), self.config.get("CLASSIFIER", "META_FILE")), "w+")
 
 	def clean(self, s):
 		s = s.replace('(', '_').replace(')', '_')
@@ -45,10 +45,21 @@ class WebClassifier:
 		X = no of documents X total number of features
 		Y = no of documents
 		'''
-		X = datasource.createTrainingMatrix()
+		X, shape = datasource.createTrainingMatrix()
 		Y = datasource.createResultVector()
+		self.metafl = ConfigParser()
+		s = time.time()
 		self.mnb.fit(X, Y)
-		pickle.dump(self.mnb, open("data/%s/%s" % (self.config.get("CLASSIFIER", "BASE"), self.config.get("CLASSIFIER", "PICKLE_FILE")), "w"))
+		e = time.time()
+
+		self.metafl.add_section("CLASSIFIER_STATS")
+		self.metafl.set("CLASSIFIER_STATS", "classifier", str(self.mnb.__class__))
+		self.metafl.set("CLASSIFIER_STATS", "data_source", datasource.section)
+		self.metafl.set("CLASSIFIER_STATS", "document_count", shape[0])
+		self.metafl.set("CLASSIFIER_STATS", "feature_count", shape[1])
+		self.metafl.set("CLASSIFIER_STATS", "training_time", str(e - s))
+		self.metafl.write(open("data/%s/%s" % ("classifier", self.config.get("CLASSIFIER", "META_FILE")), "wb"))
+		pickle.dump(self.mnb, open("data/%s/%s" % ("classifier", self.config.get("CLASSIFIER", "PICKLE_FILE")), "w"))
 
 	def buildDataSetFromFile(self, test_file = "test.txt"):
 		'''
@@ -63,16 +74,16 @@ class WebClassifier:
 		return dataset
 			
 		
-	def buildTestVector(self, dataset):
+	def __buildTestVector(self, dataset):
 		'''
 		Assumes dataset in a list of lists format where each list maybe of unequal length
 		Converts raw dataset into standard matrix format for scikit classifier.
 		Return list of lists in document vector format
 		'''
 		TEST = []
-		self.metafl.seek(0)
-		self.metafl.readline() # Document Count skipped
-		feature_count = int(self.metafl.readline())
+		self.metafl = ConfigParser()
+		self.metafl.readfp(open("data/%s/%s" % ("classifier", self.config.get("CLASSIFIER", "META_FILE"))))
+		feature_count = int(self.metafl.get("CLASSIFIER_STATS", "feature_count"))
 
 		for l in dataset:
 			vect = [0] * feature_count
@@ -86,7 +97,7 @@ class WebClassifier:
 
 	
 	def loadClassifier(self):
-		self.mnb = pickle.load(open("data/%s/%s" % (self.config.get("CLASSIFIER", "BASE"), self.config.get("CLASSIFIER", "PICKLE_FILE")), "r"))
+		self.mnb = pickle.load(open("data/%s/%s" % ("classifier", self.config.get("CLASSIFIER", "PICKLE_FILE")), "r"))
 		
 
 	def test(self, dataset, load = False):
@@ -94,9 +105,9 @@ class WebClassifier:
 		Assumes raw datset: list of lists format(unequal length)
 		'''
 		if load:
-			self.mnb = pickle.load(open("data/%s/%s" % (self.config.get("CLASSIFIER", "BASE"), self.config.get("CLASSIFIER", "PICKLE_FILE")), "r"))
+			self.mnb = pickle.load(open("data/%s/%s" % ("classifier", self.config.get("CLASSIFIER", "PICKLE_FILE")), "r"))
 
-		TEST = self.buildTestVector(dataset)
+		TEST = self.__buildTestVector(dataset)
 	
 		return {
 			'predict': self.mnb.predict(TEST),
