@@ -53,12 +53,12 @@ class ODPsource(Datasource):
 		pos = nltk.pos_tag(words)
 		return set([x[0] for x in pos if x[1] in ['NN', 'NNS', 'NNPS', 'NNP']])
 
-	def generateFeatures(self, forced_categories = None):
+	def generateFeatures(self, forced_categories = None, docs_per_category = 20000):
 		self.__populateRedis(forced_cateories)
 
 		categories = forced_categories or self.r.keys()
 		for category in categories:
-			l = r.srandmember(category, 20000)
+			l = r.srandmember(category, docs_per_category)
 			os.mkdir(os.path.join(self.config.get(self.section, "CLASSES_FILE"), category))
 			f = open("%s/%s/%s" % (self.config.get(self.section, "CLASSES_FILE"), name, self.config.get(self.section, "FEATURE_FILE")), "w")
 			for doc in l:
