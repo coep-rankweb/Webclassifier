@@ -1,71 +1,70 @@
+from lxml import etree as ET
 from datasource import Datasource
 import sys
 import os
+import gzip
+import redis
 
 class ODPsource(Datasource):
 	''' class defining the wikipedia data source '''
 	def __init__(self, path):
 		#Datasource.__init__(self, path, "ODP")
 		super(Datasource, self).__init__(path, "ODP")
+		self.r = redis.Redis()
+		self.r.flushdb()
+		self.DMOZ = 'content.rdf.u8.gz'
 
-	def generateFeatures(self, forced_categories = None):
-		''' should contain odp_parser.py '''
-		stemmer = nltk.stem.PorterStemmer()
-		nsmap = {'d': 'http://purl.org/dc/elements/1.0/'}
-
-		file_dict = {'Arts' : 0, 'Games' : 0, 'Kids and Teens' : 0, 'Reference' : 0, 'Shopping' : 0, 'Business' : 0, 'Health' : 0, 'News' : 0, 'Regional' : 0, 'Society' : 0, 'Computers' : 0, 'Home' : 0, 'Recreation' : 0, 'Science' : 0, 'Sports' : 0, 'World' : 0}
-
-		cat_count = {'Arts' : 0, 'Games' : 0, 'Kids and Teens' : 0, 'Reference' : 0, 'Shopping' : 0, 'Business' : 0, 'Health' : 0, 'News' : 0, 'Regional' : 0, 'Society' : 0, 'Computers' : 0, 'Home' : 0, 'Recreation' : 0, 'Science' : 0, 'Sports' : 0, 'World' : 0}
-
-		flag= {'Arts' : 0, 'Games' : 0, 'Kids and Teens' : 0, 'Reference' : 0, 'Shopping' : 0, 'Business' : 0, 'Health' : 0, 'News' : 0, 'Regional' : 0, 'Society' : 0, 'Computers' : 0, 'Home' : 0, 'Recreation' : 0, 'Science' : 0, 'Sports' : 0, 'World' : 0}
-
-		with gzip.open('content.rdf.u8.gz', 'rb') as content:
+	def __populateRedis(self, forced_categories = None):
+		with gzip.open(self.DMOZ, 'rb') as content:
 			for event, element in ET.iterparse(content, tag='{http://dmoz.org/rdf/}ExternalPage'):
 				elems = list(element)
-				res = []
+				res = {}
 				for elem in elems:
 					tag = elem.tag.split('}')[1]
-					if tag in ['Title', 'Description', 'topic']:
-						val = elem.xpath('text()')[0]
-						try: val = unicode(val, encoding = "UTF-8")
-						except: pass
-						res.append(unidecode(val))
-
+					try:
+						if tag in ['Title', 'Description', 'topic']:
+							val = elem.xpath('text()')[0]
+							res[tag] = val
+					except:
+						print elem.tag
+						continue
 				# no longer need this, remove from memory again, as well as any preceding siblings
 				element.clear()
 				while element.getprevious() is not None:
-				    del element.getparent()[0]
+					del element.getparent()[0]
 
-				res = dict(zip(['title', 'description', 'topic'], res))
+				if not res['topic']: continue
 				try:
-					res['topic'] = res['topic'].split('/')[1]	#extract only the top category
-				except IndexError as e:
-					print res
+					key = res['topic'].split('/')[1]
+					if forced_categories and key in forced_categories:
+						memb = res['Title'] + ' . ' + res['Description']
+						r.sadd(key, memb)
+				except: continue
 
-				if flag[res['topic']]: continue
+	def POS(self, val):
+		try: val = unicode(val, encoding = "UTF-8")
+		except: pass
+		val = unidecode(val)
+		val = val.lower()
 
-				words = nltk.wordpunct_tokenize(res['title'] + " . " + res['description'])
-				pos = nltk.pos_tag(words)
-				res['keywords'] = set([x[0] for x in pos if x[1] in ['NN', 'NNS', 'NNPS', 'NNP']])
+		val = re.sub("[!@#$%^&*()_\-=+><\\\/\"'{}:;\[\]]", ' ', val)
 
+		words = nltk.wordpunct_tokenize(val)
+		pos = nltk.pos_tag(words)
+		return set([x[0] for x in pos if x[1] in ['NN', 'NNS', 'NNPS', 'NNP']])
 
-				try:
-					os.mkdir(os.path.join("classes", res['topic']))
-					print res['topic']
-					f = open(os.path.join("classes", res['topic'], "features.txt"), "w")
-					file_dict[res['topic']] = f
-				except OSError:
-					f = file_dict[res['topic']]
+	def generateFeatures(self, forced_categories = None):
+		self.__populateRedis(forced_cateories)
 
-				cat_count[res['topic']] += 1
-				if cat_count[res['topic']] >= 20000:
-					flag[res['topic']] = 1
-
-				for k in res['keywords']:
-					k = stemmer.stem(clean(k))
-					if k: f.write("%s," % k)
+		categories = forced_categories or self.r.keys()
+		for category in categories:
+			l = r.srandmember(category, 20000)
+			os.mkdir(os.path.join(self.config.get(self.section, "CLASSES_FILE"), category))
+			f = open("%s/%s/%s" % (self.config.get(self.section, "CLASSES_FILE"), name, self.config.get(self.section, "FEATURE_FILE")), "w")
+			for doc in l:
+				features = POS(doc)
+				for j in features:
+					if j: f.write("%s," % j)
 				f.write("\n")
-				del res
-
-		for f in file_dict.values():
+			print category
 			f.close()
