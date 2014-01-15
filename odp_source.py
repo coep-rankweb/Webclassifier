@@ -5,7 +5,8 @@ import os
 class ODPsource(Datasource):
 	''' class defining the wikipedia data source '''
 	def __init__(self, path):
-		Datasource.__init__(self, path, "ODP")
+		#Datasource.__init__(self, path, "ODP")
+		super(Datasource, self).__init__(path, "ODP")
 
 	def generateFeatures(self, forced_categories = None):
 		''' should contain odp_parser.py '''

@@ -6,7 +6,8 @@ import os
 class Wikisource(Datasource):
 	''' class defining the wikipedia data source '''
 	def __init__(self, path, forced_categories = None):
-		Datasource.__init__(self, path, "WIKI", forced_categories = forced_categories)
+		#Datasource.__init__(self, path, "WIKI", forced_categories = forced_categories)
+		super(Datasource, self).__init__(path, "WIKI", forced_categories = forced_categories)
 
 	def generateFeatures(self):
 		'''
