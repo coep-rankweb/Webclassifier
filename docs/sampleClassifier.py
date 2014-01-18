@@ -1,5 +1,5 @@
 from classifier import WebClassifier
-from wiki_source import Wikisource
+from datasource.wiki import Wikisource
 import sys
 
 '''
@@ -11,7 +11,7 @@ opt = sys.argv[1]
 w = WebClassifier("./")
 if opt == "train":
 	#BUILD DATASOURCE
-	d = Wikisource("./", forced_categories = ['arts', 'sports'])
+	d = Wikisource("./")
 	d.generateFeatures()
 	d.buildData()
 	#TRAIN CLASSIFIER

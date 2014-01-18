@@ -1,0 +1,9 @@
+[TRAINING_DATA_STATS]
+document_count = 76
+feature_count = 3274
+nnz = 8688
+
+[CATEGORY_STATS]
+arts = 54
+sports = 22
+

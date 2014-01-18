@@ -1,6 +1,5 @@
 import sys
-from datasource import Datasource
-from extractor import Extractor
+from datasource import _Datasource
 import os
 
 import requests
@@ -12,7 +11,7 @@ from unidecode import unidecode
 import re
 import urllib2
 
-class Wikisource(Datasource):
+class Wikisource(_Datasource):
 	''' class defining the wikipedia data source '''
 	def __init__(self, path, forced_categories = None):
 		#Datasource.__init__(self, path, "WIKI", forced_categories = forced_categories)

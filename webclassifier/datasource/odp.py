@@ -1,12 +1,11 @@
 import sys
-sys.path.append("../")
 from lxml import etree as ET
-from datasource import Datasource
+from datasource import _Datasource
 import os
 import gzip
 import redis
 
-class ODPsource(Datasource):
+class ODPsource(_Datasource):
 	''' class defining the wikipedia data source '''
 	def __init__(self, path):
 		#Datasource.__init__(self, path, "ODP")

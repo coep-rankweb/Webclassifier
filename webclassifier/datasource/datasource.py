@@ -4,7 +4,7 @@ from nltk.stem import PorterStemmer
 import redis
 import os
 
-class Datasource:
+class _Datasource:
 	'''
 	general interface to be implemented by each data source
 	'''

@@ -1,0 +1,7 @@
+[CLASSIFIER_STATS]
+classifier = <class 'sklearn.naive_bayes.MultinomialNB'>
+data_source = WIKI
+document_count = 76
+feature_count = 3274
+training_time = 0.00273513793945
+
