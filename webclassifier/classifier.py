@@ -7,20 +7,18 @@ import os
 import redis
 import pickle
 import time
-from ConfigParser import ConfigParser
+from configuration import Configuration
 
 class WebClassifier:
-	def __init__(self, path):
+	def __init__(self):
 		'''
 		path specifies the path to the directory where the module is located.
 		'''
 		self.r = redis.Redis()
 		self.mnb = MultinomialNB()
 		self.stemmer = PorterStemmer()
-		self.config = ConfigParser()
-		os.chdir(os.path.abspath(path))
-		self.config.readfp(open("classifier.conf"))
-		try: os.mkdir("data/classifier")
+		self.config = Configuration()
+		try: os.mkdir(Configuration.create_path("output_data/classifier"))
 		except: pass
 
 	def clean(self, s):
@@ -30,7 +28,6 @@ class WebClassifier:
 	def valid(self, s):
 		a = s.replace(' ', '').replace('\t', '').replace('\n', '')
 		return a != ''
-
 
 	def train(self, datasource):
 		'''
@@ -47,7 +44,7 @@ class WebClassifier:
 		'''
 		X, shape = datasource.createTrainingMatrix()
 		Y = datasource.createResultVector()
-		self.metafl = ConfigParser()
+		self.metafl = Configuration("output_data/classifier/%s" % self.config.get("CLASSIFIER", "META_FILE"))
 		s = time.time()
 		self.mnb.fit(X, Y)
 		e = time.time()
@@ -58,8 +55,7 @@ class WebClassifier:
 		self.metafl.set("CLASSIFIER_STATS", "document_count", shape[0])
 		self.metafl.set("CLASSIFIER_STATS", "feature_count", shape[1])
 		self.metafl.set("CLASSIFIER_STATS", "training_time", str(e - s))
-		self.metafl.write(open("data/%s/%s" % ("classifier", self.config.get("CLASSIFIER", "META_FILE")), "wb"))
-		pickle.dump(self.mnb, open("data/%s/%s" % ("classifier", self.config.get("CLASSIFIER", "PICKLE_FILE")), "w"))
+		pickle.dump(self.mnb, open(Configuration.create_path("output_data/classifier/%s" % self.config.get("CLASSIFIER", "PICKLE_FILE")), "w"))
 
 	def buildDataSetFromFile(self, test_file = "test.txt"):
 		'''
@@ -81,8 +77,7 @@ class WebClassifier:
 		Return list of lists in document vector format
 		'''
 		TEST = []
-		self.metafl = ConfigParser()
-		self.metafl.readfp(open("data/%s/%s" % ("classifier", self.config.get("CLASSIFIER", "META_FILE"))))
+		self.metafl = Configuration("output_data/%s/%s" % ("classifier", self.config.get("CLASSIFIER", "META_FILE")))
 		feature_count = int(self.metafl.get("CLASSIFIER_STATS", "feature_count"))
 
 		for l in dataset:
@@ -97,15 +92,19 @@ class WebClassifier:
 
 	
 	def loadClassifier(self):
-		self.mnb = pickle.load(open("data/%s/%s" % ("classifier", self.config.get("CLASSIFIER", "PICKLE_FILE")), "r"))
-		
+		self.config = Configuration()
+		pickle_file = self.config.get("CLASSIFIER", "PICKLE_FILE")
+		self.mnb = pickle.load(open(Configuration.create_path("output_data/classifier/%s" % pickle_file)))
+
 
 	def test(self, dataset, load = False):
 		'''
 		Assumes raw datset: list of lists format(unequal length)
 		'''
+		self.config = Configuration()
 		if load:
-			self.mnb = pickle.load(open("data/%s/%s" % ("classifier", self.config.get("CLASSIFIER", "PICKLE_FILE")), "r"))
+			pickle_file = self.config.get("CLASSIFIER", "PICKLE_FILE")
+			self.mnb = pickle.load(open(Configuration.create_path("output_data/classifier/%s" % pickle_file), "r"))
 
 		TEST = self.__buildTestVector(dataset)
 	
